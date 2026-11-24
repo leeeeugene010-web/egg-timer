@@ -176,7 +176,7 @@ svg *{transform-box:fill-box;transform-origin:center}
       <li><b>2</b>중불 유지, 처음 1분은 살살 굴리기</li>
       <li><b>3</b>끝나면 바로 얼음물 3분</li>
     </ul>
-    <small>냉장 특란 기준 · 3개부터 개당 +10초 · 실온 −30초</small>
+    <small>냉장 특란 · 물 넉넉히 · 7개 이상 +30초, 10개 이상 +1분 · 실온 −30초</small>
     <button class="done-btn" id="closeSheet">확인</button>
   </div>
 </div>
@@ -192,7 +192,7 @@ const LEVELS=[
 let st={count:2,level:1,room:false};
 try{const s=JSON.parse(localStorage.getItem('eggst2'));if(s&&s.count)st=Object.assign(st,s)}catch(e){}
 const $=id=>document.getElementById(id);
-const extra=n=>Math.min(90,Math.max(0,(n-2)*10));
+const extra=n=>n>=10?60:n>=7?30:0;
 const secs=lv=>LEVELS[lv].base+extra(st.count)-(st.room?30:0);
 const fmt=s=>Math.floor(s/60)+':'+String(s%60).padStart(2,'0');
 
