@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>반숙란 타이머</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@200;300;400;500;600&display=swap" rel="stylesheet">
+<style>
+/* VOICE: 조용하고 정확한 iOS 기본 앱 감도, 글씨는 최소
+   IDEA: iOS 시계 앱의 타이머 — 원형 링과 동그란 버튼 두 개
+   PICTURE: 선택 화면은 달걀 단면 하나, 타이머는 링 안에서 물이 끓고 계란이 흔들림
+   COLOUR and TYPE: #f5f5f7 바탕, 흰 카드, 시스템 오렌지 하나. 시스템 폰트, 숫자는 얇게
+   LAYOUT: 100dvh 한 화면, 가운데 정렬, 아래에 컨트롤 */
+:root{color-scheme:light dark;
+--bg:light-dark(#f5f5f7,#000);--card:light-dark(#fff,#1c1c1e);--ink:light-dark(#1d1d1f,#f5f5f7);
+--sub:light-dark(#86868b,#8e8e93);--fill:light-dark(#e8e8ed,#2c2c2e);--acc:#ff9f0a;--accSoft:light-dark(#fff3e0,#3a2a0e);
+--p1:light-dark(#f7f8fa,#2a2e33);--p2:light-dark(#dde3e8,#15171a);--w1:light-dark(#a6dcf3,#2f7ea6);--w2:light-dark(#2f8cc4,#0b3550);--wsurf:light-dark(#d4f0fc,#4b98bd);--shell:light-dark(#fff,#f2efe9);--shellLine:light-dark(#ece6dc,#d8d0c3)}
+:root[data-theme=light]{color-scheme:light}:root[data-theme=dark]{color-scheme:dark}
+*{box-sizing:border-box;min-width:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.4 -apple-system,BlinkMacSystemFont,"SF Pro Text","Apple SD Gothic Neo","Noto Sans KR",system-ui,sans-serif;overflow:hidden;-webkit-font-smoothing:antialiased;letter-spacing:-.01em}
+.app{height:100dvh;max-width:440px;margin:0 auto;position:relative}
+.scene{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;padding:max(16px,env(safe-area-inset-top)) 20px max(24px,env(safe-area-inset-bottom));opacity:0;pointer-events:none;transform:scale(.98);transition:opacity .4s ease,transform .4s ease}
+.scene.on{opacity:1;pointer-events:auto;transform:none}
+.bar{width:100%;display:flex;justify-content:space-between;align-items:center;min-height:44px}
+.mini{font-size:15px;color:var(--sub);font-weight:500}
+.icon{width:36px;height:36px;border-radius:50%;border:0;background:var(--fill);color:var(--sub);font:600 16px Georgia,serif;font-style:italic;cursor:pointer}
+.grow{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;align-items:center;justify-content:center;width:100%}
+.num{font-weight:200;font-size:clamp(64px,19vw,84px);line-height:1;font-variant-numeric:tabular-nums;letter-spacing:-.03em;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","Noto Sans KR",sans-serif}
+.hero svg{height:min(26vh,170px);width:auto;margin-bottom:14px;}
+.controls{width:100%;display:flex;flex-direction:column;gap:12px}
+.group{background:var(--card);border-radius:16px;padding:6px}
+.stepper{display:flex;align-items:center;justify-content:space-between}
+.sbtn{width:52px;height:44px;border:0;border-radius:11px;background:transparent;color:var(--acc);font-size:28px;font-weight:300;cursor:pointer;touch-action:manipulation}
+.sbtn:disabled{color:var(--fill)}
+.sval{font-size:22px;font-weight:500;font-variant-numeric:tabular-nums}
+.seg{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));background:var(--fill);border-radius:12px;padding:3px;position:relative}
+.seg i{position:absolute;top:3px;bottom:3px;left:3px;width:calc((100% - 6px)/4);background:var(--card);border-radius:9px;box-shadow:0 3px 8px rgba(0,0,0,.12),0 1px 1px rgba(0,0,0,.04);transition:transform .3s cubic-bezier(.3,.7,.2,1)}
+.seg button{position:relative;border:0;background:none;color:var(--ink);font:500 14px inherit;font-family:inherit;min-height:38px;cursor:pointer;touch-action:manipulation;white-space:nowrap}
+.seg button[aria-checked=false]{color:var(--sub)}
+.row{display:flex;align-items:center;justify-content:space-between;padding:4px 10px;font-size:15px}
+.sw{position:relative;width:51px;height:31px;flex:none}
+.sw input{position:absolute;inset:0;opacity:0;margin:0;cursor:pointer}
+.sw span{position:absolute;inset:0;border-radius:16px;background:var(--fill);transition:background .25s;pointer-events:none}
+.sw span::after{content:"";position:absolute;top:2px;left:2px;width:27px;height:27px;border-radius:50%;background:#fff;box-shadow:0 3px 8px rgba(0,0,0,.15);transition:transform .25s}
+.sw input:checked+span{background:#34c759}.sw input:checked+span::after{transform:translateX(20px)}
+.sw input:focus-visible+span,button:focus-visible{outline:3px solid color-mix(in srgb,var(--acc) 60%,transparent);outline-offset:2px}
+.pair{width:100%;display:flex;justify-content:space-between;align-items:center;margin-top:18px}
+.circ{width:80px;height:80px;border-radius:50%;border:0;font:500 15px inherit;font-family:inherit;cursor:pointer;position:relative;touch-action:manipulation;transition:transform .15s}
+.circ::before{content:"";position:absolute;inset:3px;border-radius:50%;border:2px solid var(--bg)}
+.circ:active{transform:scale(.95)}
+.c-acc{background:var(--accSoft);color:var(--acc)}
+.c-go{background:var(--acc);color:#fff}
+.c-mute{background:var(--fill);color:var(--ink)}
+.one{display:flex;justify-content:center;width:100%;margin-top:18px}
+/* ring */
+.ring{position:relative;width:min(78vw,300px,44vh);aspect-ratio:1}
+.ring>svg{position:absolute;inset:0;width:100%;height:100%}
+.trk{fill:none;stroke:var(--fill);stroke-width:8}
+.prg{fill:none;stroke:var(--acc);stroke-width:8;stroke-linecap:round;transform:rotate(-90deg);transform-origin:50% 50%;transition:stroke-dashoffset .3s linear}
+.ring .num{margin-top:22px}
+svg{overflow:visible}.ring>svg{overflow:hidden}
+svg *{transform-box:fill-box;transform-origin:center}
+.wave{animation:wave 2.4s linear infinite}
+.wave2{animation:wave 3.6s linear infinite reverse;opacity:.6}
+@keyframes wave{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+.egg-b{animation:bob 1.5s ease-in-out infinite}
+@keyframes bob{0%,100%{transform:translate(0,0) rotate(-8deg)}50%{transform:translate(2px,-7px) rotate(8deg)}}
+.bub{animation:rise 2.2s ease-in infinite;opacity:0}
+@keyframes rise{0%{transform:translateY(0) scale(.5);opacity:0}15%{opacity:.9}90%{opacity:.7}100%{transform:translateY(-160px) scale(1.1);opacity:0}}
+.steam{animation:steam 3s ease-in infinite;opacity:0}
+@keyframes steam{0%{transform:translateY(10px) scaleX(.8);opacity:0}30%{opacity:.6}100%{transform:translateY(-36px) scaleX(1.3);opacity:0}}
+.caus{animation:caus 3s ease-in-out infinite alternate}
+@keyframes caus{from{transform:translateX(-8px)}to{transform:translateX(8px)}}
+.ov,.steam,.caus{pointer-events:none}
+.bub{cursor:pointer}
+.bub .gd{display:none}.bub.gold .gd{display:block}
+.bub.hit{visibility:hidden}
+.eg{cursor:pointer}.eg.spin{animation:spin .7s cubic-bezier(.3,.7,.3,1)}
+@keyframes spin{to{transform:rotate(360deg)}}
+.fx{pointer-events:none;animation:fx .5s ease-out forwards}
+@keyframes fx{from{opacity:1;transform:scale(.6)}to{opacity:0;transform:scale(1.8)}}
+.pts{pointer-events:none;font:600 15px -apple-system,sans-serif;fill:#fff;animation:pts .7s ease-out forwards}
+.pts.g{fill:#ffcc33}
+@keyframes pts{to{opacity:0;transform:translateY(-22px)}}
+.snd{display:grid;place-items:center;font:inherit}.snd .x{display:none}.snd[aria-pressed=false] .x{display:block}.snd[aria-pressed=false] .w{display:none}
+.score{display:flex;align-items:center;gap:6px;font-size:17px;font-weight:600;font-variant-numeric:tabular-nums;color:var(--ink)}
+.score svg{width:18px;height:18px}
+.paused .bub,.paused .eg{pointer-events:none}
+.paused .steam,.paused .caus,.paused .wave,.paused .wave2,.paused .egg-b,.paused .bub{animation-play-state:paused}
+.cut{opacity:0;transform:scale(.6)}
+.on .cut{animation:pop .8s cubic-bezier(.25,1.5,.45,1) .15s forwards}
+@keyframes pop{to{opacity:1;transform:none}}
+.check{position:absolute;right:16%;top:14%;width:44px;height:44px;border-radius:50%;background:var(--acc);display:grid;place-items:center;opacity:0;transform:scale(.3)}
+.on .check{animation:pop .5s cubic-bezier(.25,1.6,.45,1) .7s forwards}
+.done-t{font-size:28px;font-weight:600;letter-spacing:-.02em;margin-top:22px}
+.hint{font-size:15px;color:var(--sub);margin-top:4px}
+/* sheet */
+.scrim{position:absolute;inset:0;background:rgba(0,0,0,.25);opacity:0;pointer-events:none;transition:opacity .3s;z-index:4}
+.scrim.on{opacity:1;pointer-events:auto}
+.sheet{position:absolute;left:8px;right:8px;bottom:8px;background:var(--card);border-radius:24px;padding:22px 22px max(18px,env(safe-area-inset-bottom));transform:translateY(110%);transition:transform .4s cubic-bezier(.3,.7,.2,1);z-index:5}
+.sheet.on{transform:none}
+.sheet ul{list-style:none;padding:0;margin:0 0 16px}
+.sheet li{display:flex;gap:12px;padding:10px 0;border-bottom:1px solid var(--fill);font-size:15px}
+.sheet li:last-child{border:0}
+.sheet b{color:var(--acc);font-weight:600;font-variant-numeric:tabular-nums;width:1em;flex:none}
+.sheet small{display:block;color:var(--sub);font-size:13px;margin-bottom:14px}
+.done-btn{width:100%;min-height:50px;border:0;border-radius:14px;background:var(--acc);color:#fff;font:600 16px inherit;font-family:inherit;cursor:pointer}
+@media(max-height:640px){.hero svg{height:110px;margin-bottom:6px}.num{font-size:60px}.circ{width:68px;height:68px}.pair,.one{margin-top:10px}.controls{gap:8px}}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}.cut,.check{opacity:1;transform:none}}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <section class="scene on" id="s1">
+    <div class="bar"><span></span><button class="icon" id="tipsBtn" aria-label="삶는 요령">i</button></div>
+    <div class="grow hero">
+      <svg id="bigEgg" viewBox="0 0 200 200" role="img" aria-label="노른자 상태"></svg>
+      <div class="num" id="time">7:00</div>
+    </div>
+    <div class="controls">
+      <div class="group stepper">
+        <button class="sbtn" id="minus" aria-label="한 개 빼기">−</button>
+        <div class="sval" aria-live="polite"><span id="count">2</span>개</div>
+        <button class="sbtn" id="plus" aria-label="한 개 더하기">+</button>
+      </div>
+      <div class="seg" id="seg" role="radiogroup" aria-label="익힘 정도"><i id="thumb"></i></div>
+      <div class="group row"><span>실온 계란</span><label class="sw"><input type="checkbox" id="room" aria-label="실온 계란"><span></span></label></div>
+    </div>
+    <div class="one"><button class="circ c-go" id="go">시작</button></div>
+  </section>
+
+  <section class="scene" id="s2">
+    <div class="bar"><span class="mini" id="boilLbl"></span><button class="icon snd" id="snd" aria-label="소리 끄기" aria-pressed="true"><svg viewBox="0 0 24 24" width="18" height="18"><path d="M4 9h4l5-4v14l-5-4H4z" fill="currentColor"/><path class="w" d="M16 8.5a5 5 0 0 1 0 7M18.5 6a8.5 8.5 0 0 1 0 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path class="x" d="M16 9l6 6M22 9l-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button></div>
+    <div class="grow">
+      <div class="ring" id="ring">
+        <svg viewBox="0 0 300 300" aria-hidden="true">
+          <defs><clipPath id="inner"><circle cx="150" cy="150" r="128"/></clipPath></defs>
+          <circle class="trk" cx="150" cy="150" r="142"/>
+          <circle class="prg" id="prg" cx="150" cy="150" r="142"/>
+          <g clip-path="url(#inner)" id="pot"></g>
+        </svg>
+      </div>
+      <div class="num" id="clock">7:00</div>
+    </div>
+    <div class="pair">
+      <button class="circ c-mute" id="cancel">취소</button>
+      <button class="circ c-acc" id="pause">일시정지</button>
+    </div>
+  </section>
+
+  <section class="scene" id="s3">
+    <div class="bar"></div>
+    <div class="grow">
+      <div class="ring">
+        <svg viewBox="0 0 300 300" aria-hidden="true">
+          <circle class="trk" cx="150" cy="150" r="142" style="stroke:var(--acc)"/>
+          <g class="cut"><svg id="cutEgg" x="40" y="36" width="220" height="220" viewBox="0 0 200 200"></svg></g>
+        </svg>
+      </div>
+      <div class="done-t">완료</div>
+      <div class="hint" id="doneHint">얼음물에 3분</div>
+    </div>
+    <div class="pair">
+      <button class="circ c-mute" id="home">처음</button>
+      <button class="circ c-go" id="again">다시</button>
+    </div>
+  </section>
+
+  <div class="scrim" id="scrim"></div>
+  <div class="sheet" id="sheet" role="dialog" aria-label="삶는 요령">
+    <ul>
+      <li><b>1</b>물이 끓으면 계란을 넣고 시작</li>
+      <li><b>2</b>중불 유지, 처음 1분은 살살 굴리기</li>
+      <li><b>3</b>끝나면 바로 얼음물 3분</li>
+    </ul>
+    <small>냉장 특란 기준 · 3개부터 개당 +10초 · 실온 −30초</small>
+    <button class="done-btn" id="closeSheet">확인</button>
+  </div>
+</div>
+
+<script>
+{
+const LEVELS=[
+  {name:'주륵',base:360,yolk:['#ffd24a','#ff9a00','#d86a00'],core:'#ff8a00',set:0,gloss:1},
+  {name:'촉촉',base:420,yolk:['#ffc340','#f59000','#c86400'],core:'#e46f00',set:.45,gloss:.85},
+  {name:'말랑',base:510,yolk:['#ffd566','#f7aa2c','#d78512'],core:'#ef9512',set:.78,gloss:.45},
+  {name:'포슬',base:660,yolk:['#ffe78e','#f7cd55','#dcaa36'],core:null,set:1,gloss:.12}
+];
+let st={count:2,level:1,room:false};
+try{const s=JSON.parse(localStorage.getItem('eggst2'));if(s&&s.count)st=Object.assign(st,s)}catch(e){}
+const $=id=>document.getElementById(id);
+const extra=n=>Math.min(90,Math.max(0,(n-2)*10));
+const secs=lv=>LEVELS[lv].base+extra(st.count)-(st.room?30:0);
+const fmt=s=>Math.floor(s/60)+':'+String(s%60).padStart(2,'0');
+
+const EGG="M100 16C61 16 34 70 34 113c0 41 29 69 66 69s66-28 66-69C166 70 139 16 100 16z";
+function eggSVG(lv,p){
+  const L=LEVELS[lv],G=L.gloss;
+  let s=`<defs>
+  <radialGradient id="${p}w" cx="40%" cy="32%" r="78%"><stop offset="0" stop-color="#ffffff"/><stop offset=".55" stop-color="#fbf6ec"/><stop offset="1" stop-color="#e8d9bf"/></radialGradient>
+  <radialGradient id="${p}y" cx="38%" cy="32%" r="72%"><stop offset="0" stop-color="${L.yolk[0]}"/><stop offset=".65" stop-color="${L.yolk[1]}"/><stop offset="1" stop-color="${L.yolk[2]}"/></radialGradient>
+  <filter id="${p}b2" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="2"/></filter>
+  <filter id="${p}b4" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="4.5"/></filter>
+  <filter id="${p}b8" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="7"/></filter>
+  <filter id="${p}tx"><feTurbulence type="fractalNoise" baseFrequency="1.1" numOctaves="2" seed="4"/><feColorMatrix values="0 0 0 0 .62  0 0 0 0 .44  0 0 0 0 .08  0 0 0 -1.6 1"/><feComposite in2="SourceGraphic" operator="in"/></filter>
+  <clipPath id="${p}c"><circle cx="100" cy="118" r="41"/></clipPath>
+  </defs>
+  <ellipse cx="100" cy="186" rx="52" ry="7" fill="#5a3a10" opacity=".3" filter="url(#${p}b4)"/>
+  <path d="${EGG}" transform="translate(0 5)" fill="#dcc9a8"/>
+  <path d="${EGG}" fill="url(#${p}w)"/>
+  <path d="${EGG}" fill="none" stroke="#fff" stroke-opacity=".9" stroke-width="1.5"/>
+  <ellipse cx="74" cy="62" rx="12" ry="22" fill="#fff" opacity=".8" filter="url(#${p}b4)" transform="rotate(20)"/>
+  <circle cx="104" cy="124" r="42" fill="#a77b3c" opacity=".38" filter="url(#${p}b4)"/>
+  ${L.set===0?`<ellipse cx="102" cy="181" rx="18" ry="4" fill="#b8741a" opacity=".35" filter="url(#${p}b2)"/>
+  <path d="M70 128C68 148 80 156 84 166C88 177 98 182 106 179C115 176 117 168 115 161C113 153 128 146 130 128Z" fill="url(#${p}y)"/>
+  <path d="M70 128C68 148 80 156 84 166C88 177 98 182 106 179C115 176 117 168 115 161C113 153 128 146 130 128Z" fill="none" stroke="${L.yolk[2]}" stroke-width="3" opacity=".35" filter="url(#${p}b2)"/>
+  <path d="M90 162c1 6 4 11 8 13" stroke="#fff" stroke-width="3" stroke-linecap="round" fill="none" opacity=".8" filter="url(#${p}b2)"/>
+  <circle cx="100" cy="176" r="1.6" fill="#fff" opacity=".9"/>`:''}
+  <circle cx="100" cy="118" r="41" fill="url(#${p}y)"/>`;
+  if(L.core) s+=`<g clip-path="url(#${p}c)"><circle cx="101" cy="121" r="${(41*(1-L.set*.5)).toFixed(1)}" fill="${L.core}" opacity="${L.set?.9:.45}" filter="url(#${p}b4)"/></g>`;
+  if(L.set>=.75) s+=`<circle cx="100" cy="118" r="41" fill="#000" filter="url(#${p}tx)" opacity="${L.set===1?.55:.3}"/>`;
+  s+=`<g clip-path="url(#${p}c)"><circle cx="100" cy="118" r="41" fill="none" stroke="${L.yolk[2]}" stroke-width="6" opacity=".45" filter="url(#${p}b2)"/></g>`;
+  s+=`<ellipse cx="85" cy="101" rx="15" ry="8" fill="#fff" opacity="${(.6*G+.08).toFixed(2)}" filter="url(#${p}b2)" transform="rotate(-28)"/>
+  <circle cx="81" cy="98" r="3.2" fill="#fff" opacity="${(.95*G).toFixed(2)}"/>
+  <path d="M128 140a34 34 0 0 1-20 14" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" opacity="${(.5*G).toFixed(2)}"/>`;
+  return s;
+}
+
+function potSVG(n){
+  const k=Math.min(n,12),eggs=[];
+  for(let i=0;i<k;i++){
+    const r=Math.floor(i/4),c=i%4,inRow=Math.min(4,k-r*4);
+    const x=150+(c-(inRow-1)/2)*48+(r%2?14:0), y=228-r*48;
+    eggs.push(`<g class="egg-b" style="animation-delay:${(-i*.29).toFixed(2)}s">
+      <ellipse cx="${x+3}" cy="${y+22}" rx="15" ry="4" fill="#0b3a5a" opacity=".35" filter="url(#pb3)"/>
+      <g class="eg"><ellipse cx="${x}" cy="${y}" rx="17" ry="22" fill="url(#pe)"/>
+      <ellipse cx="${x-6}" cy="${y-9}" rx="4.5" ry="7" fill="#fff" opacity=".85" filter="url(#pb1)" transform="rotate(20)"/>
+      <ellipse cx="${x}" cy="${y}" rx="24" ry="28" fill="transparent"/></g></g>`);
+  }
+  let bubs='';
+  for(let i=0;i<11;i++){const x=34+((i*67)%232),y=268-(i%3)*8,r=4+i%3*2,d=2.4+(i%4)*.5;bubs+=`<g class="bub" style="animation-duration:${d}s;animation-delay:${(i*.33).toFixed(2)}s"><circle cx="${x}" cy="${y}" r="${r}" fill="url(#pbb)"/><circle class="gd" cx="${x}" cy="${y}" r="${r}" fill="none" stroke="#ffcc33" stroke-width="2.5"/><circle cx="${x}" cy="${y}" r="16" fill="transparent"/></g>`}
+  const wave=(y,a)=>{let d=`M0 ${y}`;for(let x=0;x<600;x+=60)d+=` q15 ${-a} 30 0 t30 0`;return d+` V300 H0z`};
+  let steam='';
+  [100,150,200].forEach((x,i)=>steam+=`<path class="steam" d="M${x} 66c-10-10 10-18 0-30c-8-10 8-16 2-26" fill="none" stroke="#fff" stroke-width="9" stroke-linecap="round" filter="url(#pb3)" style="animation-delay:${i*.9}s"/>`);
+  let caus='';
+  for(let i=0;i<5;i++)caus+=`<path class="caus" d="M${20+i*60} ${250+i%2*12}q14 -8 28 0t28 0" fill="none" stroke="#fff" stroke-width="2.5" opacity=".28" style="animation-delay:${i*.6}s"/>`;
+  return `<defs>
+    <linearGradient id="pw" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--p1)"/><stop offset="1" stop-color="var(--p2)"/></linearGradient>
+    <linearGradient id="wb" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--w1)"/><stop offset="1" stop-color="var(--w2)"/></linearGradient>
+    <radialGradient id="pe" cx="36%" cy="30%" r="80%"><stop offset="0" stop-color="#fffdf7"/><stop offset=".55" stop-color="#f5e8d0"/><stop offset="1" stop-color="#c4ab86"/></radialGradient>
+    <radialGradient id="pbb" cx="50%" cy="50%" r="50%"><stop offset="0" stop-color="#fff" stop-opacity=".05"/><stop offset=".72" stop-color="#fff" stop-opacity=".25"/><stop offset="1" stop-color="#fff" stop-opacity=".95"/></radialGradient>
+    <filter id="pb1" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="1.5"/></filter>
+    <filter id="pb3" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="3"/></filter>
+    <filter id="pb8" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="8"/></filter>
+  </defs>
+  <rect width="300" height="300" fill="url(#pw)"/>
+  ${steam}
+  <path class="wave2" d="${wave(70,6)}" fill="var(--wsurf)"/>
+  <path class="wave" d="${wave(84,6)}" fill="url(#wb)"/>
+  ${caus}${bubs}${eggs.join('')}
+  <path class="wave ov" d="${wave(84,6)}" fill="url(#wb)" opacity=".18"/>
+  <path class="wave ov" d="${wave(84,6)}" fill="none" stroke="#fff" stroke-width="2" opacity=".7" style="clip-path:inset(0 0 calc(100% - 14px) 0)"/>
+  <ellipse class="ov" cx="62" cy="160" rx="14" ry="90" fill="#fff" opacity=".22" filter="url(#pb8)"/>
+  <ellipse class="ov" cx="238" cy="190" rx="6" ry="50" fill="#fff" opacity=".14" filter="url(#pb8)"/>`;
+}
+
+function render(){
+  const t=secs(st.level);
+  $('count').textContent=st.count;
+  $('minus').disabled=st.count<=1;$('plus').disabled=st.count>=12;
+  $('time').textContent=fmt(t);
+  $('bigEgg').innerHTML=eggSVG(st.level,'big');
+  $('seg').querySelectorAll('button').forEach(b=>b.remove());
+  $('seg').insertAdjacentHTML('beforeend',LEVELS.map((l,i)=>`<button role="radio" data-i="${i}" aria-checked="${i===st.level}">${l.name}</button>`).join(''));
+  $('thumb').style.transform=`translateX(${st.level*100}%)`;
+  $('room').checked=st.room;
+  try{localStorage.setItem('eggst2',JSON.stringify(st))}catch(e){}
+}
+function show(id){for(const s of document.querySelectorAll('.scene'))s.classList.toggle('on',s.id===id)}
+
+const C=2*Math.PI*142;$('prg').style.strokeDasharray=C;
+let total=0,left=0,running=false,endAt=0,tick=null,actx=null;
+function beep(){
+  try{if(!actx)return;const t=actx.currentTime;[0,.18,.36,.9,1.08,1.26].forEach(d=>{const o=actx.createOscillator(),g=actx.createGain();o.type='sine';o.frequency.value=1318;o.connect(g);g.connect(actx.destination);g.gain.setValueAtTime(.0001,t+d);g.gain.exponentialRampToValueAtTime(.25,t+d+.02);g.gain.exponentialRampToValueAtTime(.0001,t+d+.16);o.start(t+d);o.stop(t+d+.17)})}catch(e){}
+  try{navigator.vibrate&&navigator.vibrate([200,100,200])}catch(e){}
+}
+function draw(){
+  $('clock').textContent=fmt(Math.max(0,Math.ceil(left)));
+  $('prg').style.strokeDashoffset=C*(total?left/total:1);
+}
+function step(){left=(endAt-Date.now())/1000;if(left<=0){finish();return}draw()}
+function run(){running=true;endAt=Date.now()+left*1000;clearInterval(tick);tick=setInterval(step,200);$('ring').classList.remove('paused');$('pause').textContent='일시정지';boilOn();step()}
+function stop(){running=false;clearInterval(tick);boilOff()}
+function start(){
+  try{if(!actx)actx=new (window.AudioContext||window.webkitAudioContext)();actx.resume&&actx.resume()}catch(e){}
+  total=left=secs(st.level);
+  $('pot').innerHTML=potSVG(st.count);
+  $('boilLbl').textContent=`${LEVELS[st.level].name} · ${st.count}개`;
+  show('s2');run();
+}
+function finish(){
+  stop();left=0;draw();beep();
+  $('cutEgg').innerHTML=eggSVG(st.level,'cut');
+  show('s3');
+}
+
+const svgEl=$('ring').querySelector('svg');
+function toSvg(el){const r=el.getBoundingClientRect(),pt=svgEl.createSVGPoint();pt.x=r.left+r.width/2;pt.y=r.top+r.height/2;return pt.matrixTransform(svgEl.getScreenCTM().inverse())}
+function fx(x,y){
+  const ns='http://www.w3.org/2000/svg',c=document.createElementNS(ns,'circle');
+  c.setAttribute('cx',x);c.setAttribute('cy',y);c.setAttribute('r',9);c.setAttribute('fill','none');c.setAttribute('stroke','#fff');c.setAttribute('stroke-width','2');c.setAttribute('class','fx');
+  $('pot').appendChild(c);setTimeout(()=>c.remove(),550);
+  for(let i=0;i<5;i++){const d=document.createElementNS(ns,'circle'),a=i/5*6.28+Math.random();d.setAttribute('cx',x+Math.cos(a)*12);d.setAttribute('cy',y+Math.sin(a)*12);d.setAttribute('r',1.6);d.setAttribute('fill','#fff');d.setAttribute('class','fx');$('pot').appendChild(d);setTimeout(()=>d.remove(),550)}
+}
+$('pot').addEventListener('pointerdown',e=>{
+  if(!running)return;
+  const b=e.target.closest('.bub');
+  if(b&&!b.classList.contains('hit')){
+    const p=toSvg(b.firstElementChild);b.classList.add('hit');fx(p.x,p.y);popSnd();
+    try{navigator.vibrate&&navigator.vibrate(10)}catch(_){}
+    return;
+  }
+  const eg=e.target.closest('.eg');
+  if(eg){eg.classList.remove('spin');void eg.getBoundingClientRect();eg.classList.add('spin')}
+});
+$('pot').addEventListener('animationiteration',e=>{
+  const b=e.target.closest&&e.target.closest('.bub');
+  if(b&&e.target===b){b.classList.remove('hit')}
+});
+$('pot').addEventListener('animationend',e=>{if(e.target.classList&&e.target.classList.contains('eg'))e.target.classList.remove('spin')});
+
+let soundOn=true;try{soundOn=localStorage.getItem('eggsnd')!=='0'}catch(e){}
+let boil=null,blubT=null;
+function noiseBuf(){const n=actx.sampleRate*2,b=actx.createBuffer(1,n,actx.sampleRate),d=b.getChannelData(0);let last=0;for(let i=0;i<n;i++){const w=Math.random()*2-1;last=(last+.02*w)/1.02;d[i]=last*3.5}return b}
+function blub(){
+  if(!boil)return;
+  const t=actx.currentTime,o=actx.createOscillator(),g=actx.createGain(),f=150+Math.random()*350;
+  o.type='sine';o.frequency.setValueAtTime(f,t);o.frequency.exponentialRampToValueAtTime(f*(1.6+Math.random()),t+.05);
+  g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(.02+Math.random()*.035,t+.008);g.gain.exponentialRampToValueAtTime(.0001,t+.07);
+  o.connect(g);g.connect(boil.out);o.start(t);o.stop(t+.08);
+  blubT=setTimeout(blub,25+Math.random()*120);
+}
+function boilOn(){
+  if(!actx||!soundOn||boil)return;
+  try{
+    const src=actx.createBufferSource();src.buffer=noiseBuf();src.loop=true;
+    const bp=actx.createBiquadFilter();bp.type='lowpass';bp.frequency.value=900;
+    const out=actx.createGain();out.gain.setValueAtTime(.0001,actx.currentTime);out.gain.exponentialRampToValueAtTime(.5,actx.currentTime+1);
+    src.connect(bp);bp.connect(out);out.connect(actx.destination);src.start();
+    boil={src,out};blub();
+  }catch(e){boil=null}
+}
+function boilOff(){
+  clearTimeout(blubT);if(!boil)return;const b=boil;boil=null;
+  try{b.out.gain.cancelScheduledValues(actx.currentTime);b.out.gain.setValueAtTime(b.out.gain.value,actx.currentTime);b.out.gain.exponentialRampToValueAtTime(.0001,actx.currentTime+.4);b.src.stop(actx.currentTime+.45)}catch(e){}
+}
+function popSnd(){
+  if(!actx||!soundOn)return;
+  try{
+    const t=actx.currentTime,o=actx.createOscillator(),g=actx.createGain(),f=500+Math.random()*250;
+    o.type='sine';o.frequency.setValueAtTime(f,t);o.frequency.exponentialRampToValueAtTime(f*3.2,t+.06);
+    g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(.28,t+.006);g.gain.exponentialRampToValueAtTime(.0001,t+.11);
+    o.connect(g);g.connect(actx.destination);o.start(t);o.stop(t+.12);
+    const n=actx.createBufferSource(),nb=actx.createBuffer(1,actx.sampleRate*.02,actx.sampleRate),d=nb.getChannelData(0);
+    for(let i=0;i<d.length;i++)d[i]=(Math.random()*2-1)*(1-i/d.length);
+    const ng=actx.createGain(),hp=actx.createBiquadFilter();hp.type='highpass';hp.frequency.value=2500;ng.gain.value=.12;
+    n.buffer=nb;n.connect(hp);hp.connect(ng);ng.connect(actx.destination);n.start(t);
+  }catch(e){}
+}
+function sndUI(){$('snd').setAttribute('aria-pressed',soundOn);$('snd').setAttribute('aria-label',soundOn?'소리 끄기':'소리 켜기')}
+$('snd').onclick=()=>{try{if(!actx)actx=new (window.AudioContext||window.webkitAudioContext)();actx.resume&&actx.resume()}catch(e){}soundOn=!soundOn;try{localStorage.setItem('eggsnd',soundOn?'1':'0')}catch(e){}sndUI();if(soundOn&&running)boilOn();else boilOff()};
+sndUI();
+const sheet=on=>{$('sheet').classList.toggle('on',on);$('scrim').classList.toggle('on',on)};
+
+$('go').onclick=start;
+$('again').onclick=start;
+$('pause').onclick=()=>{if(running){stop();$('ring').classList.add('paused');$('pause').textContent='재개'}else run()};
+$('cancel').onclick=()=>{stop();show('s1')};
+$('home').onclick=()=>show('s1');
+$('minus').onclick=()=>{if(st.count>1){st.count--;render()}};
+$('plus').onclick=()=>{if(st.count<12){st.count++;render()}};
+$('seg').onclick=e=>{const b=e.target.closest('[data-i]');if(b){st.level=+b.dataset.i;render();$('seg').querySelector(`[data-i="${st.level}"]`).focus()}};
+$('room').onchange=e=>{st.room=e.target.checked;render()};
+$('tipsBtn').onclick=()=>sheet(true);
+$('closeSheet').onclick=()=>sheet(false);
+$('scrim').onclick=()=>sheet(false);
+document.addEventListener('visibilitychange',()=>{if(running&&!document.hidden)step()});
+render();
+}
+</script>
+</body>
+</html>
